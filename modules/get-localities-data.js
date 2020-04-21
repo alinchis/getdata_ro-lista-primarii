@@ -27,137 +27,100 @@ function replaceROChars(inStr) {
 
 // /////////////////////////////////////////////////////////////////////
 // extract UNITS data
-function extractData(dataArr, county, locality, htmlData) {
+function extractData(dataArr, county, htmlData) {
     //   // remove unnecessary '\n' characters & load html
     const $ = cheerio.load(htmlData);
-    // select all 'unit types' elements
-    const unitTypes = $('h2');
-    // select all tables
-    const tables = $('table');
-    // create new arrays to hold return data
-    const unitTypesArr = [];
+    // select the only row in main table
+    const mainRow = $('tr', '#maintable')[0];
+    // select middle column in main row
+    const locArr = $(mainRow)
+        .children()                 // all 'td' elements
+        .eq(1)                      // data is on the second column (2/3)
+        .children('.pi_rbox');      // select only data rows
 
     // if retrieval is successful
-    if (unitTypes && unitTypes.length > 0) {
-        // console.log(` ${unitTypes.length} unit tipes retrieved`);
-        // for each item in list of unit types
-        $(unitTypes).each((i, item) => {
-            const newItem = $(item).text().trim();
-            // console.log(newItem);
-            unitTypesArr.push(newItem);
-        });
+    if (locArr && locArr.length > 0) {
+        console.log(` ${locArr.length} elements retrieved`);
+        // for each item in list
+        $(locArr).each((i, item) => {
+            const denumire = $(item).children().eq(0).children().eq(0).text();
+            const localitate = denumire
+                .replace('Primaria Generala', 'Municipiul Bucuresti')
+                .replace('Primaria ', '')
+                .replace('Sectorului ', 'Sectorul ');
+            // let primar = '';
+            // let adresa = '';
+            // let telefon = '';
+        
+            const dataItem = $(item).text();
+            console.log(dataItem);
+            const regexp = /^(.+)Primar:\s(.+)((Adresa|Telefon):\s(.+))\.\.\.\sdetalii/;
+            const regexpLigth = /^(.+)Primar:\s(.+)\.\.\.\sdetalii/;
+            const match = dataItem.match(regexp);
+            const matchLight = dataItem.match(regexpLigth);
+            // console.log(matchLight);
+            const primar = match && match[2] ? match[2] : (matchLight && matchLight[2] ? matchLight[2] : ''); 
+            const adresa = match && match[4] && (match[4].toLowerCase() === 'adresa') ? match[5] : '';
+            const telefon = match && match[4] && (match[4].toLowerCase() === 'telefon') ? match[5] : '';
 
-        // for each table in list of tables
-        $(tables).each((i, table) => {
-
-            // for each row in table
-            $(table).find('tr').each((j, row) => {
-                // console.log(`&&&&&& ROW ${$(row).html()}`)
-                // if current row is not header row
-                if ($(row).find('td').length > 0) {
-                    const rowArr = [];
-                    // add country column
-                    rowArr.push('Romania');
-                    // add county column
-                    rowArr.push(county);
-                    // add locality column
-                    rowArr.push(locality);
-                    // add group column
-                    rowArr.push(unitTypesArr[i]);
-
-                    // forea each column in row
-                    $(row).find('td').each((k, item) => {
-                        const currentItem = $(item).text().trim();
-                        // console.log(`T:${i} | R:${j} | C:${k} >>> ${unitTypesArr[i]} :: ${currentItem}`)
-                        // add current column item
-                        rowArr.push(currentItem);
-                    });
-                    console.log(rowArr);
-                    dataArr.push(rowArr);
-                }
-            });
+            console.log(`${i}: ${localitate}, ${denumire}\n`);
+            // console.log(`${i}: Primar: ${match[2]} / TipInfo: ${match[4]} / Info: ${match[5]}`);
+            // console.log(`${i}: ${dataItem}`);
+            dataArr.push([
+                'Romania',
+                county === 'Bucuresti' ? 'Municipiul Bucuresti': county,
+                localitate,
+                denumire,
+                adresa,
+                telefon,
+                primar
+            ]);
         });
     } else {
         throw "ERROR retrieving counties info!";
     }
-};
+}
 
 
 // /////////////////////////////////////////////////////////////////////////////
 // // EXPORTS
-module.exports = async (loadObj, unitsSaveFile, servicesSaveFile) => {
+module.exports = async (rootPath, loadObj, locSaveFile) => {
     console.log('\x1b[34m%s\x1b[0m', `PROGRESS: Download Localities DATA`);
     // declare variables
     let htmlPage = '';
     
-    // create save units array
-    const saveUArr = [];
+    // create save localities array
+    const saveLocArr = [];
     // add header
-    saveUArr.push(['tara', 'judet', 'localitate', 'tip_unitate', 'denumire', 'nume_doctor', 'adresa', 'telefon', 'email', 'website']);
-
-    // create save services array
-    const saveSArr = [];
-    // add header
-    saveSArr.push(['tara', 'judet', 'localitate', 'tip_serviciu', 'denumire', 'specialitate', 'adresa', 'telefon']);
+    saveLocArr.push(['tara', 'judet', 'localitate', 'denumire', 'adresa', 'telefon', 'primar']);
 
     // load data
     const counties = loadObj.counties;
+    console.log(counties);
     // for each item in counties array
     for (let i = 0; i < counties.length; i += 1) {
         console.log(`\n ${i}:: ${counties[i].title} >>>>>>>>>>>>>>>>>>>>>>>>>`);
-        const localities = counties[i].localities;
-        // for each item in localities array
-        for (let j = 0; j < localities.length; j += 1) {
-            // console.log(localities[j]);
-            // get data for current locality
-            await axios.get(localities[j].href)
-                .then((response) => {
-                    htmlPage = response.data;
-                })
-                .catch(err => console.log(err));
-            
-            // extract UNITS html data
-            const regexpUnits = /<!-- BEGIN: Units -->(.*)<!-- END: Units -->/gs;
-            const matchU = htmlPage.replace(/\\n/g, '').match(regexpUnits);
-            // console.log(matchU[0]);
-            const unitsHtml = matchU[0]
-                .replace(/<!-- BEGIN: Units -->/, '')
-                .replace(/<!-- END: Units -->/, '')
-                .trim();
+        
+        // get data for current county
+        await axios.get(`${rootPath}${counties[i].href}`)
+            .then((response) => {
+                htmlPage = response.data;
+            })
+            .catch(err => console.log(err));
 
-            // extract data from html
-            if (unitsHtml) extractData(saveUArr, counties[i].title, localities[j].title, unitsHtml);
+        // extract data from html
+        if (htmlPage) extractData(saveLocArr, counties[i].title, htmlPage);
 
-            // extract SERVICES html data
-            const regexpServices = /<!-- BEGIN: Services -->(.*)<!-- END: Services -->/gs;
-            const matchS = htmlPage.replace(/\\n/g, '').match(regexpServices);
-            // console.log(matchS);
-            const servicesHtml = matchS[0]
-                .replace(/<!-- BEGIN: Services -->/, '')
-                .replace(/<!-- END: Services -->/, '')
-                .trim();
-
-            // extract data from html
-            if (servicesHtml) extractData(saveSArr, counties[i].title, localities[j].title, servicesHtml);
-        };
-    };
+    }
 
     // save units array to file
-	fs.writeFileSync(unitsSaveFile, replaceROChars(saveUArr.map((row, index) => {
+	fs.writeFileSync(locSaveFile, replaceROChars(saveLocArr.map((row, index) => {
         const firstColItem = index > 0 ? index : 'id';
         // console.log(`#### ${row}`);
         const newRow = [firstColItem, ...row];
         // console.log(`$$$$$ ${newRow}`);
         return newRow.join('#');
     }).join('\n')));
-    console.log('@CNAS:: UNITS file write Done!');
-    
-    // save services array to file
-    fs.writeFileSync(servicesSaveFile, replaceROChars(saveSArr.map((row, index) => {
-        const firstColItem = index > 0 ? index : 'id';
-        const newRow = [firstColItem, ...row];
-        return newRow.join('#');
-    }).join('\n')));
-    console.log('@CNAS:: SERVICES file write Done!');
+    console.log('@portal-info:: RO-primarii.csv file write Done!');
     
 }

@@ -4,7 +4,6 @@ const glob = require('glob');
 // import local modules
 const createFolder = require('./modules/create-folder.js');
 const getCountiesInfo = require('./modules/get-counties-info.js');
-const getLocalitiesInfo = require('./modules/get-localities-info.js');
 const getLocalitiesData = require('./modules/get-localities-data.js');
 
 // local paths
@@ -16,7 +15,8 @@ const localPaths = {
 };
 
 // remote paths
-const countiesInfoPath = 'http://www.cnas.ro/map-county'; // 
+const rootPath = 'https://www.portal-info.ro';
+const countiesInfoPath = 'https://www.portal-info.ro/primarii/'; // 
 
 
 // ////////////////////////////////////////////////////////////////////////////
@@ -43,15 +43,14 @@ async function main() {
   const logsPath = `${dataPath}/${today}/${localPaths['logs']}`;
   // create save files paths variables
   const countiesSavePath = `${metadataPath}/counties.json`;
-  const locSavePath = `${metadataPath}/localities.json`;
-  const unitsSavePath = `${tablesPath}/units.csv`;
-  const servicesSavePath = `${tablesPath}/services.csv`;
+  const locSavePath = `${metadataPath}/ro-primarii.csv`;
+  // const detailsSavePath = `${tablesPath}/details.csv`;
 
   // help text
   const helpText = `\n Available commands:\n\n\
   1. -h : display help text\n\
-  2. -m : download metadata for counties and localities\n\
-  3. -d : download data for each locality\n\
+  2. -m : download counties links\n\
+  3. -d : download data for each county\n\
   4. -c : continue the most recent download\n`;
 
   // get command line arguments
@@ -67,33 +66,33 @@ async function main() {
   const countiesList = [
     // 'Alba',
     // 'Arad',
-    // 'Argeş',
-    // 'Bacău',
+    // 'Argesş',
+    // 'Bacau',
     // 'Bihor',
     // 'Bistrita Nasaud',
     // 'Botosani',
-    // 'Brăila',
-    // 'Brașov',
-    // 'Buzău',
-    // 'Călăraşi',
-    // 'Caraş-Severin',
+    // 'Braila',
+    // 'Brasov',
+    // 'Buzau',
+    // 'Calarasi',
+    // 'Caras Severin',
     // 'Cluj',
-    // 'Constanţa',
+    // 'Constanta',
     // 'Covasna',
-    // 'Dâmboviţa',
+    // 'Dambovita',
     // 'Dolj',
-    // 'Galați',
+    // 'Galati',
     // 'Giurgiu',
     // 'Gorj',
     // 'Harghita',
     // 'Hunedoara',
-    // 'Ialomița',
+    // 'Ialomita',
     // 'Iasi',
     // 'Ilfov',
     // 'Maramures',
-    // 'Mehedinţi',
-    // 'Municipiul Bucuresti',
-    // 'Mureş',
+    // 'Mehedinti',
+    // 'Bucuresti',
+    // 'Mures',
     // 'Neamt',
     // 'Olt',
     // 'Prahova',
@@ -102,7 +101,7 @@ async function main() {
     // 'Sibiu',
     // 'Suceava',
     // 'Teleorman',
-    // 'Timiş',
+    // 'Timis',
     // 'Tulcea',
     // 'Valcea',
     // 'Vaslui',
@@ -125,27 +124,22 @@ async function main() {
     // stage 1: get counties info
     console.log('\n>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>');
     console.log('STAGE 1: get counties info\n');
-    const countiesInfo = await getCountiesInfo(countiesInfoPath, countiesSavePath);
-
-    // stage 2: get localities info
-    console.log('\n>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>');
-    console.log('STAGE 2: get localities info\n');
-    const filteredCounties = {
-      href: countiesInfo.href,
-      counties: countiesInfo.counties.filter( item => countiesList.length > 0 ? countiesList.includes(item.title) : true )
-    }
-    getLocalitiesInfo(filteredCounties, locSavePath);
+    getCountiesInfo(countiesInfoPath, countiesSavePath);
 
      // 3. else if argument is 'd'
   } else if (mainArg === '-d') {
 
-    // stage 3: get localities DATA
+    // stage 2: get localities info
     console.log('\n>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>');
-    console.log('STAGE 3: get localities data\n');
-    // read localities metadata file
-    const localitiesInfo = require(`${metadataPath}/localities.json`);
+    console.log('STAGE 2: get localities info\n');
+    const countiesInfo = require(`${metadataPath}/counties.json`);
+    const filteredCounties = {
+      href: countiesInfo.href,
+      counties: countiesInfo.counties.filter( item => countiesList.length > 0 ? countiesList.includes(item.title) : true )
+    };
+    // console.log(JSON.stringify(filteredCounties));
     // download data
-    getLocalitiesData(localitiesInfo, unitsSavePath, servicesSavePath);    
+    getLocalitiesData(rootPath, filteredCounties, locSavePath);  
 
   // 4. else if argument is 'c'
   } else if (mainArg === '-c') {
